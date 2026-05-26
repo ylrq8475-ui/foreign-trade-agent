@@ -1,0 +1,45 @@
+Customer Agent Windows 安装说明
+
+一、你会收到什么
+1. CustomerAgentSetup.exe
+2. Setup-Guide-CN.txt
+3. Release-Notes-CN.txt
+
+如果没有安装包，而是 CustomerAgent 文件夹，也可以直接双击其中的 CustomerAgent.exe 运行。
+
+二、安装方法
+1. 双击 CustomerAgentSetup.exe
+2. 按提示完成安装
+3. 安装完成后，可从桌面或开始菜单打开 Customer Agent
+
+三、首次启动会发生什么
+1. 程序会自动启动本地服务
+2. 浏览器会自动打开 http://127.0.0.1:8000/
+3. 如果当前属于首次配置状态，系统会自动进入 /setup 页面
+4. 第三方可以直接在页面中填写：
+   - Google Maps API Key
+   - 管理员账号密码
+   - 公司信息
+   - SMTP 配置
+
+运行目录位置：
+%LOCALAPPDATA%\CustomerAgent
+
+四、首次启动后会自动生成的文件
+1. %LOCALAPPDATA%\CustomerAgent\.env
+2. %LOCALAPPDATA%\CustomerAgent\data\
+3. %LOCALAPPDATA%\CustomerAgent\logs\
+
+五、首次配置完成后可直接使用的新功能
+1. 可在页面里直接测试 SMTP
+2. 客户详情页支持“审核并正式发送”
+3. 如后台开启自动发送，审核通过后也可自动发出
+
+六、卸载
+1. 关闭程序
+2. 在 Windows 应用列表中卸载 Customer Agent
+
+七、注意事项
+1. 本程序默认在本机打开，不会自动公开到互联网
+2. 不要把真实付费 API key 随意发给不可信用户
+3. 如果浏览器没有自动打开，可手动访问 http://127.0.0.1:8000/

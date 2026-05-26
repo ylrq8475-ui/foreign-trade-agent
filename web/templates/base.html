@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ settings.app_name }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <span class="sidebar-badge">AI</span>
+                <div>
+                    <strong>{{ settings.app_name }}</strong>
+                    <small>客户开发工作台</small>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a class="nav-link {% if current_nav == 'workspace' %}active{% endif %}" href="/customers">工作台</a>
+                <a class="nav-link" href="/customers#new-search">搜索新客户</a>
+                <a class="nav-link" href="/customers?status=待人工审核">待人工审核</a>
+                <a class="nav-link" href="/customers?status=已发送">已发送</a>
+                <a class="nav-link" href="/customers?status=已回复">已回复</a>
+                <a class="nav-link" href="/customers?tag=重点客户">重点客户</a>
+                <a class="nav-link" href="/customers?search=private label">私牌线索</a>
+            </nav>
+
+            <div class="sidebar-section">
+                <p class="sidebar-title">当前原则</p>
+                <ul class="sidebar-list">
+                    <li>所有邮件必须先人工审核</li>
+                    <li>优先使用官网公开证据</li>
+                    <li>标记、日志、状态全程留痕</li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="workspace">
+            <header class="workspace-topbar">
+                <div>
+                    <p class="eyebrow">MVP Workspace</p>
+                    <h1>{% block page_title %}客户开发工作台{% endblock %}</h1>
+                    <p class="subtitle">{% block page_intro %}围绕找客户、看官网、写草稿、人工审核、发送记录和状态回写的一体化窗口。{% endblock %}</p>
+                </div>
+                <div class="toolbar-actions">
+                    {% block toolbar %}
+                    <a class="toolbar-link" href="/customers">返回工作台</a>
+                    {% endblock %}
+                </div>
+            </header>
+
+            <section class="workspace-body">
+                {% block content %}{% endblock %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

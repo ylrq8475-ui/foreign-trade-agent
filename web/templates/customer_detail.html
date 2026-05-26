@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block page_title %}客户多功能窗口{% endblock %}
+{% block page_intro %}围绕单个客户，集中完成标记、官网归档、画像、草稿、发送、回复和日志查看。{% endblock %}
+
+{% block toolbar %}
+<a class="toolbar-link" href="/customers">返回工作台</a>
+{% endblock %}
+
+{% block content %}
+<section class="workspace-grid">
+    <article class="panel panel-hero">
+        <div class="customer-headline">
+            <div>
+                <h2>{{ customer.company_name }}</h2>
+                <p class="subtitle">{{ customer.country or "-" }} / {{ customer.website or "无官网" }}</p>
+            </div>
+            <div class="detail-actions">
+                <form method="post" action="/customers/{{ customer.id }}/analyze">
+                    <button type="submit">重新生成画像与草稿</button>
+                </form>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel panel-main">
+        <h3>客户概览</h3>
+        <dl class="info-grid">
+            <div><dt>状态</dt><dd>{{ customer.status }}</dd></div>
+            <div><dt>Place ID</dt><dd>{{ customer.place_id }}</dd></div>
+            <div><dt>电话</dt><dd>{{ customer.phone or "-" }}</dd></div>
+            <div><dt>行业</dt><dd>{{ customer.industry or "-" }}</dd></div>
+            <div><dt>关键词</dt><dd>{{ customer.search_keyword or "-" }}</dd></div>
+            <div><dt>匹配评分</dt><dd>{{ customer.match_score or "-" }} / 100</dd></div>
+            <div><dt>匹配等级</dt><dd>{{ customer.match_level or "-" }}</dd></div>
+            <div><dt>更新时间</dt><dd>{{ customer.updated_at }}</dd></div>
+        </dl>
+        <p class="meta-line"><strong>匹配判断：</strong>{{ customer.match_summary or "-" }}</p>
+        <div class="tag-row">
+            {% for item in customer.match_reasons %}
+            <span class="tag">{{ item }}</span>
+            {% else %}
+            <span class="muted">暂无匹配依据</span>
+            {% endfor %}
+        </div>
+        <form class="stack-form" method="post" action="/customers/{{ customer.id }}/status">
+            <label>
+                <span>修改状态</span>
+                <select name="status">
+                    {% for option in status_options %}
+                    <option value="{{ option }}" {% if customer.status == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <button type="submit">保存状态</button>
+        </form>
+    </article>
+
+    <article class="panel panel-side">
+        <h3>客户标记</h3>
+        <p class="meta-line"><strong>当前标签：</strong>{% if customer.customer_tags %}{{ customer.customer_tags | join(", ") }}{% else %}-{% endif %}</p>
+        <form class="stack-form" method="post" action="/customers/{{ customer.id }}/tags">
+            <input type="text" name="tags_text" value="{{ customer.customer_tags | join(', ') }}" placeholder="重点客户, 德国, 私牌">
+            <button type="submit">保存标签</button>
+        </form>
+    </article>
+
+    <article class="panel panel-main">
+        <h3>官网分析结果</h3>
+        <p>{{ customer.website_summary or "还没有生成官网摘要。" }}</p>
+        <p class="meta-line"><strong>中文判断摘要：</strong>{{ website_summary_cn or "-" }}</p>
+        <div class="tag-row">
+            {% for item in customer.main_products %}
+            <span class="tag">{{ item }}</span>
+            {% else %}
+            <span class="muted">暂无产品提取</span>
+            {% endfor %}
+        </div>
+        <p class="meta-line"><strong>来源页面：</strong>{{ customer.source_url or "-" }}</p>
+        <p class="meta-line"><strong>引用片段：</strong>{{ customer.source_snippet or "-" }}</p>
+        <p class="meta-line"><strong>置信度：</strong>{{ customer.confidence_score or "-" }}</p>
+        <p class="meta-line"><strong>邮箱候选：</strong>{% if customer.email_candidates %}{{ customer.email_candidates | join(", ") }}{% else %}-{% endif %}</p>
+        <p class="meta-line"><strong>人工补充特征：</strong>{{ customer.manual_research_note or "-" }}</p>
+    </article>
+
+    <article class="panel panel-side">
+        <h3>人工补充特征</h3>
+        <p class="meta-line"><strong>用途：</strong>当官网抽取不够准确时，可手动补充客户定位、品类或合作方式。</p>
+        <form class="stack-form" method="post" action="/customers/{{ customer.id }}/manual-note">
+            <textarea name="manual_research_note" placeholder="例如：客户偏 kitchen accessories distributor，有自有品牌，重点做烘焙工具渠道。">{{ customer.manual_research_note or "" }}</textarea>
+            <button type="submit">保存人工特征</button>
+        </form>
+    </article>
+
+    <article class="panel panel-full">
+        <h3>个性化依据</h3>
+        {% if basis_cards %}
+        <div class="basis-grid">
+            {% for item in basis_cards %}
+            <article class="basis-card">
+                <p class="meta-line"><strong>依据类型：</strong>{{ item.category_label }} / {{ item.type_label }}</p>
+                <p class="meta-line"><strong>中文说明：</strong>{{ item.explanation_cn }}</p>
+                <p class="meta-line"><strong>来源页面：</strong>
+                    {% if item.page %}
+                    <a href="{{ item.page }}" target="_blank" rel="noreferrer">{{ item.page }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </p>
+                <p class="meta-line"><strong>原文片段：</strong>{{ item.quote or "-" }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>当前还没有可用的个性化依据。</p>
+        {% endif %}
+    </article>
+
+    <article class="panel panel-main">
+        <h3>客户画像</h3>
+        {% if customer.profile_json %}
+        <pre>{{ customer.profile_json | tojson(indent=2, ensure_ascii=False) }}</pre>
+        {% else %}
+        <p>还没有生成客户画像。</p>
+        {% endif %}
+    </article>
+
+    <article class="panel panel-side">
+        <h3>回复与状态回写</h3>
+        <p class="meta-line"><strong>当前回复状态：</strong>{{ customer.reply_status or "-" }}</p>
+        <p class="meta-line"><strong>最近回复时间：</strong>{{ customer.last_reply_at or "-" }}</p>
+        <p class="meta-line"><strong>停止联系：</strong>{{ "是" if customer.do_not_contact else "否" }}</p>
+        <form class="stack-form" method="post" action="/customers/{{ customer.id }}/reply">
+            <label>
+                <span>回复结果</span>
+                <select name="reply_status">
+                    <option value="">请选择</option>
+                    {% for option in reply_status_options %}
+                    <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>备注</span>
+                <textarea name="reply_note" placeholder="例如：客户说暂时没有采购计划 / 邮箱退信 / 自动回复假期中。"></textarea>
+            </label>
+            <button type="submit">保存回复结果</button>
+        </form>
+    </article>
+
+    <article class="panel panel-full">
+        <h3>开发信草稿与发送</h3>
+        <div class="dual-panel">
+            <div>
+                <p class="meta-line"><strong>审核状态：</strong>{{ customer.draft_review_status or "待审核" }}</p>
+                <p class="meta-line"><strong>通过时间：</strong>{{ customer.approved_at or "-" }}</p>
+                <form class="stack-form" method="post" action="/customers/{{ customer.id }}/draft">
+                    <label>
+                        <span>Subject</span>
+                        <input type="text" name="subject" value="{{ customer.email_subject or '' }}">
+                    </label>
+                    <label>
+                        <span>正文</span>
+                        <textarea name="body">{{ customer.email_body or "还没有生成邮件草稿。" }}</textarea>
+                    </label>
+                    <label>
+                        <span>审核备注</span>
+                        <textarea name="review_note">{{ customer.draft_review_note or "" }}</textarea>
+                    </label>
+                    <button type="submit">保存草稿修改</button>
+                </form>
+                <form class="stack-form" method="post" action="/customers/{{ customer.id }}/approve">
+                    <label>
+                        <span>通过备注</span>
+                        <input type="text" name="review_note" value="{{ customer.draft_review_note or '' }}">
+                    </label>
+                    <button class="secondary" type="submit">人工审核通过</button>
+                </form>
+                <p class="meta-line"><strong>AI 痕迹风险：</strong>{{ customer.email_ai_tone_risk or "-" }}</p>
+            </div>
+            <div>
+                <p class="meta-line"><strong>发送规则：</strong>所有邮件都必须人工审核通过后，才能正式发送。</p>
+                <p class="meta-line"><strong>最近发送状态：</strong>{{ customer.last_send_status or "-" }}</p>
+                <p class="meta-line"><strong>最近失败原因：</strong>{{ customer.last_send_error or "-" }}</p>
+                <form class="stack-form" method="post" action="/customers/{{ customer.id }}/contact-email">
+                    <label>
+                        <span>收件人邮箱</span>
+                        <input type="email" name="contact_email" value="{{ customer.contact_email or '' }}" placeholder="name@example.com">
+                    </label>
+                    <button type="submit">保存收件人</button>
+                </form>
+                <form class="stack-form" method="post" action="/customers/{{ customer.id }}/approve-send">
+                    <input type="hidden" name="review_note" value="{{ customer.draft_review_note or '' }}">
+                    <label>
+                        <span>发送到</span>
+                        <input type="email" name="recipient_email" value="{{ customer.contact_email or '' }}" placeholder="name@example.com">
+                    </label>
+                    <button type="submit">审核后正式发送</button>
+                </form>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel panel-full">
+        <h3>爬取信息归档</h3>
+        <div class="mini-kpis">
+            <div><span>抓取状态</span><strong>{{ "成功" if customer.crawl_snapshot.success else "未完成" if customer.crawl_snapshot else "-" }}</strong></div>
+            <div><span>抓取页数</span><strong>{{ customer.crawl_snapshot.page_count if customer.crawl_snapshot else "-" }}</strong></div>
+            <div><span>抓取错误</span><strong>{{ customer.crawl_snapshot.error if customer.crawl_snapshot else "-" }}</strong></div>
+        </div>
+        <p class="meta-line"><strong>抓取到的邮箱：</strong>{% if customer.crawl_snapshot and customer.crawl_snapshot.email_candidates %}{{ customer.crawl_snapshot.email_candidates | join(", ") }}{% else %}-{% endif %}</p>
+        {% if customer.crawl_snapshot and customer.crawl_snapshot.pages %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>页面类型</th>
+                        <th>标题</th>
+                        <th>链接</th>
+                        <th>文本预览</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in customer.crawl_snapshot.pages %}
+                    <tr>
+                        <td>{{ item.page_type }}</td>
+                        <td>{{ item.title or "-" }}</td>
+                        <td>
+                            {% if item.url %}
+                            <a href="{{ item.url }}" target="_blank" rel="noreferrer">{{ item.url }}</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ item.preview or "-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>还没有保存抓取归档。</p>
+        {% endif %}
+    </article>
+
+    {% if customer.status == "无效客户" %}
+    <article class="panel panel-full invalid-panel">
+        <h3>无效公司人工复核</h3>
+        <p class="meta-line"><strong>当前网站：</strong>
+            {% if customer.website %}
+            <a href="{{ customer.website }}" target="_blank" rel="noreferrer">{{ customer.website }}</a>
+            {% else %}
+            无官网
+            {% endif %}
+        </p>
+        <p class="meta-line"><strong>说明：</strong>人工确认该客户无效后，可以手动从当前客户库中删除。</p>
+        <form method="post" action="/customers/{{ customer.id }}/delete">
+            <button class="danger" type="submit">确认删除该无效客户</button>
+        </form>
+    </article>
+    {% endif %}
+
+    <article class="panel panel-main">
+        <h3>人工备注</h3>
+        <form class="stack-form" method="post" action="/customers/{{ customer.id }}/note">
+            <textarea name="note" placeholder="记录人工判断、发送计划或补充信息">{{ customer.note or "" }}</textarea>
+            <button type="submit">保存备注</button>
+        </form>
+    </article>
+
+    <article class="panel panel-side">
+        <h3>发送记录</h3>
+        {% if customer.send_history %}
+        <div class="compact-list">
+            {% for item in customer.send_history | reverse %}
+            <div class="compact-item">
+                <strong>{{ item.sent_at }}</strong>
+                <span>{{ item.recipient_email or "-" }}</span>
+                <small>{{ "成功" if item.ok else "失败" }} / {{ item.subject }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>还没有发送记录。</p>
+        {% endif %}
+    </article>
+
+    <article class="panel panel-full">
+        <h3>操作日志</h3>
+        {% if customer.activity_log %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>动作</th>
+                        <th>详情</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in customer.activity_log | reverse %}
+                    <tr>
+                        <td>{{ item.at }}</td>
+                        <td>{{ item.action }}</td>
+                        <td>{{ item.detail }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>还没有操作日志。</p>
+        {% endif %}
+    </article>
+</section>
+{% endblock %}

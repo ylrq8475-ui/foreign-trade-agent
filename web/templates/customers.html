@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block page_title %}客户开发工作台{% endblock %}
+{% block page_intro %}在一个窗口内完成线索导入、客户筛选、状态查看和后续跟进入口。{% endblock %}
+
+{% block toolbar %}
+<a class="toolbar-link" href="/customers?status=待人工审核">查看待审核</a>
+{% endblock %}
+
+{% block content %}
+<section class="workspace-grid">
+    <article class="panel panel-hero">
+        <div class="summary-row">
+            <div class="summary-card">
+                <span>客户总数</span>
+                <strong>{{ stats.total }}</strong>
+            </div>
+            <div class="summary-card">
+                <span>待人工审核</span>
+                <strong>{{ stats.review }}</strong>
+            </div>
+            <div class="summary-card">
+                <span>已发送</span>
+                <strong>{{ stats.sent }}</strong>
+            </div>
+            <div class="summary-card">
+                <span>已回复</span>
+                <strong>{{ stats.replied }}</strong>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel panel-main">
+        <div id="new-search"></div>
+        <div class="panel-head">
+            <div>
+                <h2>搜索新客户</h2>
+                <p>直接在网站内输入关键词、国家和数量，系统会先调用 Google Places 搜索，再把新客户写入当前客户库。</p>
+            </div>
+        </div>
+        <form class="discover-form" method="post" action="/customers/discover">
+            <label>
+                <span>关键词</span>
+                <input type="text" name="query" value="{{ search_form.query }}" placeholder="kitchen tools distributor" required>
+            </label>
+            <label>
+                <span>国家</span>
+                <input type="text" name="country" value="{{ search_form.country }}" placeholder="Germany" required>
+            </label>
+            <label>
+                <span>数量</span>
+                <input type="number" name="limit" min="1" max="20" value="{{ search_form.limit }}">
+            </label>
+            <label>
+                <span>搜索模式</span>
+                <select name="search_mode">
+                    <option value="strict" {% if search_form.mode == "strict" %}selected{% endif %}>严格</option>
+                    <option value="balanced" {% if search_form.mode == "balanced" %}selected{% endif %}>平衡</option>
+                    <option value="broad" {% if search_form.mode == "broad" %}selected{% endif %}>宽松</option>
+                </select>
+            </label>
+            <button type="submit">搜索并导入客户</button>
+        </form>
+    </article>
+
+    <article class="panel panel-side">
+        <div class="panel-head">
+            <div>
+                <h2>搜索建议</h2>
+                <p>优先使用更像渠道商、进口商、品牌方的关键词。</p>
+            </div>
+        </div>
+        <div class="integration-stack">
+            <div class="mini-status">
+                <h3>推荐词</h3>
+                <p>silicone kitchenware distributor</p>
+                <p>silicone kitchen tools importer</p>
+                <p>food-grade silicone kitchenware wholesaler</p>
+                <p>private label silicone kitchen tools</p>
+                <p>baking tools importer</p>
+                <p>housewares distributor</p>
+            </div>
+            <div class="mini-status">
+                <h3>优先顺序</h3>
+                <p>先测 distributor / importer / wholesaler</p>
+                <p>再测 private label / OEM</p>
+                <p>最后扩到 broader housewares</p>
+            </div>
+            <div class="mini-status">
+                <h3>避免词</h3>
+                <p>kitchen shop</p>
+                <p>retail store</p>
+                <p>commercial equipment store</p>
+                <p>grosskuchentechnik</p>
+                <p>gastronomiebedarf</p>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel panel-side">
+        <div class="panel-head">
+            <div>
+                <h2>常用搜索词</h2>
+                <p>把有效关键词组合保存下来，后面可以直接复制使用。</p>
+            </div>
+        </div>
+        <form class="stack-form" method="post" action="/saved-searches">
+            <label>
+                <span>关键词</span>
+                <input type="text" name="query" value="{{ search_form.query }}" required>
+            </label>
+            <label>
+                <span>国家</span>
+                <input type="text" name="country" value="{{ search_form.country }}" required>
+            </label>
+            <label>
+                <span>数量</span>
+                <input type="number" name="limit" min="1" max="20" value="{{ search_form.limit }}">
+            </label>
+            <label>
+                <span>搜索模式</span>
+                <select name="search_mode">
+                    <option value="strict" {% if search_form.mode == "strict" %}selected{% endif %}>严格</option>
+                    <option value="balanced" {% if search_form.mode == "balanced" %}selected{% endif %}>平衡</option>
+                    <option value="broad" {% if search_form.mode == "broad" %}selected{% endif %}>宽松</option>
+                </select>
+            </label>
+            <label>
+                <span>备注</span>
+                <input type="text" name="note" placeholder="例如：德国厨房工具渠道词">
+            </label>
+            <button type="submit">保存常用搜索词</button>
+        </form>
+        <div class="integration-stack">
+            {% for item in saved_searches %}
+            <div class="mini-status">
+                <h3>{{ item.query }}</h3>
+                <p><strong>国家：</strong>{{ item.country }}</p>
+                <p><strong>数量：</strong>{{ item.limit }}</p>
+                <p><strong>模式：</strong>{{ item.search_mode or "balanced" }}</p>
+                <p><strong>备注：</strong>{{ item.note or "-" }}</p>
+                <p><a class="primary-link" href="/customers?draft_query={{ item.query | urlencode }}&draft_country={{ item.country | urlencode }}&draft_limit={{ item.limit }}&draft_mode={{ (item.search_mode or 'balanced') | urlencode }}">回填到搜索框</a></p>
+                <form class="stack-form" method="post" action="/saved-searches/{{ item.id }}/delete">
+                    <button class="secondary" type="submit">删除</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="mini-status">
+                <p>还没有保存常用搜索词。</p>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel panel-side">
+        <div class="panel-head">
+            <div>
+                <h2>集成状态</h2>
+                <p>快速查看真实 API 是否正常。</p>
+            </div>
+        </div>
+        <div class="integration-stack">
+            <div class="mini-status">
+                <h3>Google Places</h3>
+                <p><strong>已配置：</strong>{{ "是" if google_status.configured else "否" }}</p>
+                <p><strong>模式：</strong>{{ google_status.mode }}</p>
+                <p><strong>最近状态：</strong>{{ google_status.last_error or "最近一次请求正常" }}</p>
+            </div>
+            <div class="mini-status">
+                <h3>MiniMax</h3>
+                <p><strong>已配置：</strong>{{ "是" if minimax_status.configured else "否" }}</p>
+                <p><strong>模型：</strong>{{ minimax_status.model or "-" }}</p>
+                <p><strong>最近状态：</strong>{{ minimax_status.last_error or "最近一次请求正常" }}</p>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel panel-main">
+        <div class="panel-head">
+            <div>
+                <h2>筛选客户</h2>
+                <p>按状态、国家、关键词、标签或搜索词，快速定位客户。</p>
+            </div>
+        </div>
+        <form class="discover-form" method="get" action="/customers">
+            <label>
+                <span>状态</span>
+                <select name="status">
+                    <option value="">全部</option>
+                    {% for option in status_options %}
+                    <option value="{{ option }}" {% if filters.status == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                <span>国家</span>
+                <input type="text" name="country" value="{{ filters.country }}" placeholder="Germany">
+            </label>
+            <label>
+                <span>关键词</span>
+                <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="kitchen tools distributor">
+            </label>
+            <label>
+                <span>标签</span>
+                <input type="text" name="tag" value="{{ filters.tag }}" placeholder="重点客户, 私牌">
+            </label>
+            <label>
+                <span>搜索</span>
+                <input type="text" name="search" value="{{ filters.search }}" placeholder="公司名 / 网站 / 类型">
+            </label>
+            <button type="submit">应用筛选</button>
+        </form>
+    </article>
+
+    <article class="panel panel-side">
+        <div class="panel-head">
+            <div>
+                <h2>工作台说明</h2>
+                <p>当前窗口支持的核心动作。</p>
+            </div>
+        </div>
+        <ul class="sidebar-list sidebar-list-light">
+            <li>客户标记与标签管理</li>
+            <li>官网抓取结果归档</li>
+            <li>草稿审核与正式发送</li>
+            <li>回复结果回写</li>
+            <li>操作日志记录</li>
+        </ul>
+    </article>
+
+    <article class="panel panel-full">
+        <div class="panel-head">
+            <div>
+                <h2>客户列表</h2>
+                <p>点击详情后进入单个客户的多功能窗口，继续做官网分析、草稿审核和日志查看。</p>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>国家</th>
+                        <th>网站</th>
+                        <th>客户类型</th>
+                        <th>状态</th>
+                        <th>标签</th>
+                        <th>匹配度</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr>
+                        <td>
+                            <div class="company-cell">
+                                <strong>{{ customer.company_name }}</strong>
+                                <small>{{ customer.match_summary or customer.search_keyword or "-" }}</small>
+                            </div>
+                        </td>
+                        <td>{{ customer.country or "-" }}</td>
+                        <td>
+                            {% if customer.website %}
+                            <a href="{{ customer.website }}" target="_blank" rel="noreferrer">{{ customer.website }}</a>
+                            {% else %}
+                            <span class="muted">无官网</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ customer.customer_type or customer.industry or "-" }}</td>
+                        <td><span class="status-pill">{{ customer.status }}</span></td>
+                        <td>
+                            {% if customer.customer_tags %}
+                            <div class="tag-row">
+                                {% for tag in customer.customer_tags[:3] %}
+                                <span class="tag">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ customer.match_level or "-" }} / {{ customer.match_score or "-" }}分</td>
+                        <td><a class="primary-link" href="/customers/{{ customer.id }}">进入窗口</a></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="empty-state">还没有客户线索，先导入一批试试看。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </article>
+</section>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const rows = document.querySelectorAll(".table-wrap tbody tr");
+    rows.forEach(function (row) {
+        const actionCell = row.querySelector("td:last-child");
+        if (!actionCell) {
+            return;
+        }
+        const detailLink = actionCell.querySelector('a[href^="/customers/"]');
+        if (!detailLink) {
+            return;
+        }
+        const path = detailLink.getAttribute("href") || "";
+        if (!path || actionCell.querySelector('form[action$="/delete"]')) {
+            return;
+        }
+
+        const deleteForm = document.createElement("form");
+        deleteForm.className = "stack-form";
+        deleteForm.method = "post";
+        deleteForm.action = path + "/delete";
+        deleteForm.onsubmit = function () {
+            return window.confirm("确认删除这个客户吗？");
+        };
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "secondary";
+        deleteButton.type = "submit";
+        deleteButton.textContent = "删除";
+
+        deleteForm.appendChild(deleteButton);
+        actionCell.appendChild(deleteForm);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+[Unit]
+Description=Customer Workspace App
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/customer-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=APP_HOST=127.0.0.1
+Environment=APP_PORT=8000
+ExecStart=/opt/customer-workspace/.venv/bin/python /opt/customer-workspace/run_workspace.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

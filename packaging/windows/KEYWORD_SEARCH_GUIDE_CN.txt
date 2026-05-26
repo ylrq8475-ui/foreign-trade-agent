@@ -1,0 +1,131 @@
+Customer Agent 关键词搜索指南
+更新时间：2026-05-21
+
+适用方向
+- 硅胶厨具
+- 硅胶厨房用品
+- 烘焙工具
+- 与 Plastic-Dingsheng 供应能力更匹配的渠道商、进口商、批发商、私牌客户
+
+一、实测方法
+- 使用真实 Google Places 搜索
+- 测试国家：Germany / United States / United Kingdom
+- 测试模式：按当前系统的 B2B 匹配规则统计 qualified hit rate
+- 命中率含义：返回候选中，符合当前“硅胶厨具采购商/渠道商”筛选规则的比例
+
+二、实测结果
+
+第一梯队：优先使用
+1. housewares distributor
+- 平均命中率：55.2%
+- Germany：28.6%
+- United States：57.1%
+- United Kingdom：80.0%
+- 适合先找更宽一点的家居厨具渠道商，再人工筛到硅胶相关买家
+
+第二梯队：可作为扩展词
+2. silicone kitchen tools importer
+- 平均命中率：20.0%
+- Germany：0.0%
+- United States：0.0%
+- United Kingdom：60.0%
+- 更适合英国市场，不适合作为德国首轮主词
+
+3. food-grade silicone kitchenware wholesaler
+- 平均命中率：18.3%
+- Germany：10.0%
+- United States：15.0%
+- United Kingdom：30.0%
+- 虽然整体不算最高，但买家方向更贴近食品级硅胶厨具
+
+第三梯队：谨慎使用
+4. silicone kitchenware distributor
+- 平均命中率：6.7%
+- 更容易跑偏到 retail / furniture / store 结果
+
+5. baking tools importer
+- 平均命中率：6.7%
+- 容易偏到烘焙原料、餐饮烘焙设备，不够稳定
+
+6. private label silicone kitchen tools
+- 平均命中率：5.0%
+- 意图很强，但 Places 结果容易跑偏，不适合作为第一轮主词
+
+三、当前最推荐的搜索顺序
+
+如果目标是先找更稳定的匹配结果：
+1. housewares distributor
+2. food-grade silicone kitchenware wholesaler
+3. silicone kitchen tools importer
+
+如果目标是先找更强采购意图：
+1. food-grade silicone kitchenware wholesaler
+2. private label silicone kitchen tools
+3. silicone kitchen tools importer
+
+四、国家使用建议
+
+Germany
+- 先用：housewares distributor
+- 再用：food-grade silicone kitchenware wholesaler
+- 少用：private label silicone kitchen tools / silicone kitchenware distributor
+- 原因：德国搜索结果容易混入 grosskuchentechnik / gastronomiebedarf / store
+
+United States
+- 先用：housewares distributor
+- 再用：food-grade silicone kitchenware wholesaler
+- 可补：private label silicone kitchen tools
+
+United Kingdom
+- 先用：housewares distributor
+- 再用：silicone kitchen tools importer
+- 再补：food-grade silicone kitchenware wholesaler
+
+五、系统内已同步的搜索规则
+
+当前系统更偏向保留这些结果：
+- silicone kitchenware
+- silicone kitchen tools
+- silicone products
+- food-grade
+- homeware / housewares
+- baking accessories
+- importer / distributor / wholesaler
+- OEM / ODM
+- sourcing / procurement
+
+当前系统更强地排除这些方向：
+- retail store
+- kitchen shop
+- commercial equipment
+- grosskuchentechnik
+- gastronomiebedarf
+- 其他重设备/商厨工程类结果
+
+六、使用建议
+
+默认先用：
+- 平衡模式 balanced
+
+结果太少时再切：
+- 宽松模式 broad
+
+要做高精度筛选时再切：
+- 严格模式 strict
+
+七、结论
+
+如果目标是“和 Plastic-Dingsheng 更匹配的硅胶厨具相关采购商”，
+当前最稳的第一主词不是最窄的 silicone private-label 词，而是：
+
+- housewares distributor
+
+如果目标是“更接近硅胶厨具本身”，
+最值得继续跟进的是：
+
+- food-grade silicone kitchenware wholesaler
+- silicone kitchen tools importer
+
+建议做法：
+- 第一轮先用宽一点但命中率高的词找渠道客户
+- 第二轮再用 silicone / food-grade / private-label 词收窄方向

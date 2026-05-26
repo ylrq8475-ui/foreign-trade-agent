@@ -1,0 +1,18 @@
+[Unit]
+Description=Customer Workspace Token API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/customer-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=API_HOST=127.0.0.1
+Environment=API_PORT=8001
+ExecStart=/opt/customer-workspace/.venv/bin/python /opt/customer-workspace/run_api.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

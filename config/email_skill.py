@@ -20,8 +20,8 @@ def _candidate_skill_dirs() -> list[Path]:
         return [Path(override)]
 
     return [
-        Path.home() / ".codex" / "skills" / "factory-customer-email-match",
         Path(__file__).resolve().parent.parent / "skills" / "factory-customer-email-match",
+        Path.home() / ".codex" / "skills" / "factory-customer-email-match",
     ]
 
 

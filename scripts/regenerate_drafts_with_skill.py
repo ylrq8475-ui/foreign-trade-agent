@@ -39,7 +39,7 @@ def main() -> int:
         synchronous=settings.db_synchronous,
     )
     repository.init_db()
-    generator = EmailDraftGenerator(settings)
+    generator = EmailDraftGenerator(settings, repository=repository)
 
     customers = repository.list_customers()
     processed: list[dict[str, object]] = []

@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from config.factory_profile import default_factory_knowledge
 from config.statuses import (
     DRAFT_STATUS_APPROVED,
     DRAFT_STATUS_PENDING,
@@ -52,6 +53,7 @@ class CustomerRepository:
             self._reset_broken_db_file()
             self._ensure_schema()
         self._migrate_legacy_json_if_needed()
+        self.ensure_factory_knowledge_seeded()
 
     def _ensure_schema(self) -> None:
         with self._connect() as conn:
@@ -306,13 +308,32 @@ class CustomerRepository:
         if cursor.rowcount == 0:
             raise ValueError(f"Saved search {saved_search_id} not found")
 
+    def ensure_factory_knowledge_seeded(self) -> None:
+        existing = self._get_app_setting_payload("factory_knowledge")
+        if existing:
+            return
+        knowledge = default_factory_knowledge()
+        knowledge["updated_at"] = self._now()
+        self._save_app_setting_payload("factory_knowledge", knowledge)
+
+    def get_factory_knowledge(self) -> dict[str, Any]:
+        current = self._get_app_setting_payload("factory_knowledge")
+        if not current:
+            seeded = default_factory_knowledge()
+            seeded["updated_at"] = self._now()
+            self._save_app_setting_payload("factory_knowledge", seeded)
+            return seeded
+        base = default_factory_knowledge()
+        return self._deep_merge(base, current)
+
+    def save_factory_knowledge(self, knowledge: dict[str, Any]) -> dict[str, Any]:
+        merged = self._deep_merge(default_factory_knowledge(), dict(knowledge or {}))
+        merged["updated_at"] = self._now()
+        self._save_app_setting_payload("factory_knowledge", merged)
+        return merged
+
     def get_smtp_settings(self) -> dict[str, Any]:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT value FROM app_settings WHERE key = ?",
-                ("smtp",),
-            ).fetchone()
-        smtp = self._decode_payload(row["value"]) if row else {}
+        smtp = self._get_app_setting_payload("smtp")
         smtp.setdefault("host", "")
         smtp.setdefault("port", "")
         smtp.setdefault("user", "")
@@ -355,16 +376,7 @@ class CustomerRepository:
             "auto_send_on_approval": bool(auto_send_on_approval),
             "updated_at": self._now(),
         }
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO app_settings(key, value)
-                VALUES (?, ?)
-                ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                """,
-                ("smtp", self._encode_payload(smtp)),
-            )
-            conn.commit()
+        self._save_app_setting_payload("smtp", smtp)
 
     def create_api_token(
         self,
@@ -1081,6 +1093,35 @@ class CustomerRepository:
         if normalized in {"DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF", "NORMAL", "FULL", "EXTRA"}:
             return normalized
         return "MEMORY" if kind == "journal" else "OFF"
+
+    def _get_app_setting_payload(self, key: str) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT value FROM app_settings WHERE key = ?",
+                (key,),
+            ).fetchone()
+        return self._decode_payload(row["value"]) if row else {}
+
+    def _save_app_setting_payload(self, key: str, payload: dict[str, Any]) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO app_settings(key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, self._encode_payload(payload)),
+            )
+            conn.commit()
+
+    def _deep_merge(self, base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(base)
+        for key, value in dict(override or {}).items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = self._deep_merge(dict(merged[key]), value)
+            else:
+                merged[key] = value
+        return merged
 
     def _encode_payload(self, payload: dict[str, Any]) -> str:
         return json.dumps(payload, ensure_ascii=False)

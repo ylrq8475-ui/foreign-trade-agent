@@ -5,19 +5,30 @@ import re
 from config.email_skill import load_email_skill_context
 from config.factory_profile import (
     FACTORY_PROFILE,
+    default_factory_knowledge,
+    factory_email_fact_summary,
     factory_context_summary,
+    get_operational_fact,
+    get_prioritized_proof_points,
     select_matching_strengths,
 )
 from config.prompts import build_email_prompt
 from config.settings import Settings
 from database.models import CustomerProfileResult, EmailDraftResult
+from database.repository import CustomerRepository
 from ai.minimax_client import MiniMaxClient
 
 
 class EmailDraftGenerator:
-    def __init__(self, settings: Settings, client: MiniMaxClient | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        client: MiniMaxClient | None = None,
+        repository: CustomerRepository | None = None,
+    ) -> None:
         self.settings = settings
         self.client = client or MiniMaxClient(settings)
+        self.repository = repository
 
     def generate(self, customer: dict, profile: CustomerProfileResult) -> EmailDraftResult:
         skill_context = load_email_skill_context()
@@ -29,11 +40,12 @@ class EmailDraftGenerator:
             return self._manual_review_result(
                 "Information insufficient for a reliable personalized draft. Please review the website content manually."
             )
+        knowledge = self._factory_knowledge()
 
-        remote_result = self._generate_with_remote_model(customer, profile, skill_context)
+        remote_result = self._generate_with_remote_model(customer, profile, skill_context, knowledge)
         if remote_result:
             return remote_result
-        local_result = self._generate_local(customer, profile)
+        local_result = self._generate_local(customer, profile, knowledge)
         if self._skill_compliance_issues(local_result, profile):
             return self._manual_review_result(
                 "Draft could not be generated in a skill-compliant way. Please review the website content manually."
@@ -41,7 +53,7 @@ class EmailDraftGenerator:
         return local_result
 
     def _generate_with_remote_model(
-        self, customer: dict, profile: CustomerProfileResult, skill_context
+        self, customer: dict, profile: CustomerProfileResult, skill_context, knowledge: dict
     ) -> EmailDraftResult | None:
         if not self.client.enabled:
             return None
@@ -69,7 +81,8 @@ class EmailDraftGenerator:
                         "your_company_type": self.settings.your_company_type,
                         "your_products": self.settings.your_products,
                         "your_advantage": self.settings.your_advantage,
-                        "factory_summary": factory_context_summary(),
+                        "factory_summary": factory_context_summary(knowledge),
+                        "factory_knowledge_summary": factory_email_fact_summary(knowledge),
                         "matched_strengths": matched_strengths,
                         "skill_guidance": skill_context.skill_guidance,
                         "skill_company_profile": skill_context.company_profile,
@@ -91,30 +104,36 @@ class EmailDraftGenerator:
         )
         processed = self._post_process_result(result, customer, profile)
         if self._skill_compliance_issues(processed, profile):
-            fallback = self._generate_local(customer, profile)
+            fallback = self._generate_local(customer, profile, knowledge)
             if self._skill_compliance_issues(fallback, profile):
                 return None
             return fallback
         return processed
 
-    def _generate_local(self, customer: dict, profile: CustomerProfileResult) -> EmailDraftResult:
+    def _generate_local(
+        self,
+        customer: dict,
+        profile: CustomerProfileResult,
+        knowledge: dict[str, object] | None = None,
+    ) -> EmailDraftResult:
+        factory_knowledge = knowledge or self._factory_knowledge()
         evidence = self._preferred_evidence(profile)
         company_name = self._display_company_name(customer.get("company_name", "your team"))
         matched_strengths = self._matched_strengths(profile)
         subject = self._build_subject(customer, profile, matched_strengths)
         opening_line = self._opening_line(profile, evidence)
         fit_line = self._fit_line(profile)
-        support_line = self._support_line(profile, matched_strengths)
-        credibility_line = self._credibility_line(profile)
-        market_signal_line = self._market_signal_line(profile)
+        support_line = self._support_line(profile, matched_strengths, factory_knowledge)
         closing_question = self._closing_question(profile)
+        signature_block = self._signature_block(factory_knowledge)
         body = (
             f"Hello {company_name} team,\n\n"
             f"{opening_line}\n\n"
-            f"{fit_line} {support_line}{credibility_line}{market_signal_line}\n\n"
+            f"{fit_line}\n"
+            f"{support_line}\n\n"
             f"{closing_question}\n\n"
             f"Best regards,\n"
-            f"{self.settings.your_company_name}"
+            f"{signature_block}"
         )
         tone_risk = "low" if len(body.split()) <= 110 else "medium"
         result = EmailDraftResult(
@@ -126,6 +145,14 @@ class EmailDraftGenerator:
             review_required=True,
         )
         return self._post_process_result(result, customer, profile)
+
+    def _factory_knowledge(self) -> dict[str, object]:
+        if self.repository is not None:
+            try:
+                return self.repository.get_factory_knowledge()
+            except Exception:
+                pass
+        return default_factory_knowledge()
 
     def _trim_quote(self, quote: str) -> str:
         trimmed = quote.strip().strip('"')
@@ -206,14 +233,14 @@ class EmailDraftGenerator:
             )
         if self._is_private_label_target(evidence_text):
             return (
-                "That seemed relevant because we are a manufacturer specializing in food-grade silicone kitchen tools for OEM and private-label programs."
+                "We manufacture food-grade silicone kitchen tools for OEM and private-label programs."
             )
         if self._is_brand_owner_target(evidence_text):
             return (
-                "That seemed relevant because we are a manufacturer specializing in food-grade silicone kitchen tools that can support assortment extension and branded programs."
+                "We manufacture food-grade silicone kitchen tools that can support assortment extension and branded programs."
             )
         return (
-            f"That seemed relevant because we are a manufacturer specializing in food-grade {self._product_focus_phrase()}."
+            f"We manufacture food-grade {self._product_focus_phrase()}."
         )
 
     def _build_subject(
@@ -244,45 +271,161 @@ class EmailDraftGenerator:
             return self.settings.your_advantage
         first = matched_strengths[0]
         replacements = {
-            "OEM/ODM support with Pantone color matching, logo printing, and private-label execution":
-                "OEM/ODM support, Pantone color matching, and custom logo printing",
+            "OEM/ODM support and private-label execution":
+                "OEM/ODM support for suitable private-label projects",
             "Focused supply in silicone kitchen tools, baking accessories, and daily-use kitchen items":
                 "a focused range of silicone kitchen tools and baking accessories",
             "Stable export supply for channel buyers, with flexible MOQ and consistent lead-time support":
                 "clear communication, stable quality, flexible MOQ, and reliable lead times",
             "Food-contact production with FDA/LFGB-compliant materials and TUV/SGS testing support":
                 "FDA/LFGB-compliant materials, stable quality control, and TUV/SGS testing support",
-            "Professional supply support for silicone and plastic kitchen products with OEM/ODM and export experience":
+            "Professional supply support for silicone and plastic kitchen products with export experience":
                 "reliable export support for silicone and plastic kitchen products",
         }
         return replacements.get(first, first.lower())
 
-    def _support_line(self, profile: CustomerProfileResult, matched_strengths: list[str]) -> str:
+    def _support_line(
+        self,
+        profile: CustomerProfileResult,
+        matched_strengths: list[str],
+        knowledge: dict[str, object],
+    ) -> str:
         observed = self._observed_text(profile)
         evidence_text = self._evidence_text(profile)
         lowered = " ".join([profile.customer_type.lower(), observed, evidence_text])
+        proof_line = self._proof_line(profile, knowledge)
+        operational_line = self._operational_fact_line(profile, knowledge)
+        primary_fact = self._primary_fact_line(profile, proof_line, operational_line)
         if self._is_private_label_target(evidence_text):
-            return (
-                "On the execution side, we can support Pantone color matching, logo printing, and customer-designated materials."
+            private_label_line = (
+                "On the execution side, we can support OEM/ODM development for suitable private-label projects."
             )
+            combined = " ".join(part for part in (private_label_line, primary_fact) if part)
+            return combined.strip()
         if any(marker in lowered for marker in ("supplier", "distributor", "importer", "wholesaler", "hotel")) and any(
             marker in lowered for marker in ("food", "fda", "lfgb", "bakery", "gastro", "compliance")
         ):
-            return (
-                "On the supply side, we focus on stable quality control, workable MOQ, reliable lead times, and food-contact compliance when needed."
-            )
+            supply_line = "On the supply side, we mainly focus on stable quality and reliable delivery coordination."
+            combined = " ".join(part for part in (supply_line, primary_fact) if part)
+            return combined.strip()
         if any(marker in lowered for marker in ("supplier", "distributor", "importer", "wholesaler", "hotel")):
-            return (
-                "On the supply side, we focus on stable quality control, workable MOQ, and reliable lead times."
-            )
+            supply_line = "On the supply side, we mainly focus on stable quality and reliable delivery coordination."
+            combined = " ".join(part for part in (supply_line, primary_fact) if part)
+            return combined.strip()
         if any(marker in lowered for marker in ("food grade", "fda", "lfgb", "bakery", "gastro")):
-            return (
-                "We can also support FDA/LFGB material requirements and testing documentation when needed."
-            )
+            food_line = "We can also support food-contact material requirements and testing documentation when needed."
+            combined = " ".join(part for part in (proof_line, food_line) if part)
+            return combined.strip()
         strength = self._strength_sentence(matched_strengths)
         if strength == "reliable export support for silicone and plastic kitchen products":
-            return "On the cooperation side, we focus on clear communication, stable quality, and reliable export coordination."
-        return f"On the cooperation side, we can support this with {strength}."
+            generic_line = "On the cooperation side, we focus on clear communication, stable quality, and reliable export coordination."
+            combined = " ".join(part for part in (proof_line, generic_line, operational_line) if part)
+            return combined.strip()
+        generic_line = f"On the cooperation side, we can support this with {strength}."
+        combined = " ".join(part for part in (proof_line, generic_line, operational_line) if part)
+        return combined.strip()
+
+    def _proof_line(self, profile: CustomerProfileResult, knowledge: dict[str, object]) -> str:
+        lowered = " ".join(
+            [
+                profile.customer_type.lower(),
+                self._observed_text(profile),
+                self._evidence_text(profile),
+            ]
+        )
+        if not any(
+            marker in lowered
+            for marker in (
+                "kitchen",
+                "housewares",
+                "utensil",
+                "baking",
+                "food",
+                "bakery",
+                "gastro",
+                "hospitality",
+                "distributor",
+                "importer",
+                "wholesaler",
+                "supplier",
+            )
+        ):
+            return ""
+        proofs = get_prioritized_proof_points(knowledge)
+        if not proofs:
+            return ""
+        first = proofs[0]
+        return f"Our silicone kitchen tools are backed by {first.get('email_phrase', '')}."
+
+    def _operational_fact_line(
+        self,
+        profile: CustomerProfileResult,
+        knowledge: dict[str, object],
+    ) -> str:
+        lowered = " ".join(
+            [
+                profile.customer_type.lower(),
+                self._observed_text(profile),
+                self._evidence_text(profile),
+            ]
+        )
+        sample_lead = get_operational_fact("sample_lead_time", knowledge)
+        silicone_moq = get_operational_fact("silicone_moq_simple", knowledge)
+        quote_turnaround = get_operational_fact("quote_dfm_turnaround", knowledge)
+        if any(marker in lowered for marker in ("urgent", "rush", "sample", "sampling", "drawing", "tooling")):
+            if sample_lead:
+                return f"Sample lead time is typically {sample_lead.get('value', '')}."
+        if any(marker in lowered for marker in ("private label", "own brand", "brand owner", "oem", "odm")):
+            if silicone_moq:
+                return f"MOQ for simple silicone items usually starts from {silicone_moq.get('value', '')}."
+            if sample_lead:
+                return f"Sample lead time is typically {sample_lead.get('value', '')}."
+        if any(marker in lowered for marker in ("sample", "drawing")) and sample_lead:
+            return f"Sample lead time is typically {sample_lead.get('value', '')}."
+        if any(marker in lowered for marker in ("distributor", "importer", "wholesaler", "supplier", "housewares", "kitchen", "hotel", "hospitality")):
+            if sample_lead:
+                return f"Sample lead time is typically {sample_lead.get('value', '')}."
+            if silicone_moq:
+                return f"MOQ for simple silicone items usually starts from {silicone_moq.get('value', '')}."
+            if quote_turnaround:
+                return f"Quote / DFM turnaround is typically {quote_turnaround.get('value', '')}."
+        return ""
+
+    def _primary_fact_line(
+        self,
+        profile: CustomerProfileResult,
+        proof_line: str,
+        operational_line: str,
+    ) -> str:
+        evidence_text = self._evidence_text(profile)
+        lowered = " ".join(
+            [
+                profile.customer_type.lower(),
+                self._observed_text(profile),
+                evidence_text,
+            ]
+        )
+        compliance_emphasis = any(
+            marker in lowered
+            for marker in ("food-contact", "food contact", "lfgb", "fda", "compliance", "bakery", "food-safe")
+        )
+        urgent_sampling = any(
+            marker in lowered
+            for marker in ("urgent", "rush", "sample", "sampling", "drawing", "tooling", "development speed")
+        )
+        if any(marker in lowered for marker in ("distributor", "importer", "wholesaler")):
+            if compliance_emphasis and proof_line:
+                return proof_line
+            return operational_line or proof_line
+        if any(marker in lowered for marker in ("private label", "brand owner", "own brand", "oem", "odm")):
+            if urgent_sampling and operational_line:
+                return operational_line
+            return operational_line or proof_line
+        if any(marker in lowered for marker in ("hotel", "hospitality", "retailer", "retail")):
+            if compliance_emphasis and proof_line:
+                return proof_line
+            return operational_line or proof_line
+        return operational_line or proof_line
 
     def _credibility_line(self, profile: CustomerProfileResult) -> str:
         observed = self._observed_text(profile)
@@ -329,10 +472,25 @@ class EmailDraftGenerator:
         if self._is_private_label_target(evidence_text):
             return "If relevant on your side, would a brief overview of suitable items and customization options be useful?"
         if any(marker in lowered for marker in ("supplier", "distributor", "importer", "wholesaler", "hotel")):
-            return "If useful, would it make sense for me to send a brief overview of a few silicone items that may fit your assortment?"
+            return "If useful, I can send a short overview of a few silicone items that may fit your assortment."
         if "baking" in lowered or "bakery" in lowered:
-            return "If useful, would a brief baking-focused item overview be worth sending over?"
-        return "If useful, would a brief overview of a few suitable items be worth sending over?"
+            return "If useful, I can send a short baking-focused item overview."
+        return "If useful, I can send a short overview of a few suitable items."
+
+    def _signature_block(self, knowledge: dict[str, object]) -> str:
+        email_playbook = knowledge.get("email_playbook", {}) if isinstance(knowledge, dict) else {}
+        signature = email_playbook.get("default_signature", {}) if isinstance(email_playbook, dict) else {}
+        lines = [
+            str(signature.get("sender_name", "") or self.settings.your_company_name or "").strip(),
+            str(signature.get("company_name", "")).strip(),
+            str(signature.get("sales_email", "")).strip(),
+            str(signature.get("phone_whatsapp", "")).strip(),
+        ]
+        unique_lines: list[str] = []
+        for line in lines:
+            if line and line not in unique_lines:
+                unique_lines.append(line)
+        return "\n".join(unique_lines)
 
 
     def _evidence_low_quality(self, evidence: list[dict]) -> bool:
@@ -477,8 +635,8 @@ class EmailDraftGenerator:
         cleaned = cleaned.replace("a broad range of", "a broad selection of")
         cleaned = re.sub(r"\s+for [A-Za-z_-]+ teams\b", "", cleaned)
         cleaned = re.sub(r"\s+for reference(?=[?.!,])", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s{2,}", " ", cleaned)
-        cleaned = cleaned.replace("  ", " ")
+        cleaned = re.sub(r"[^\S\n]{2,}", " ", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         paragraphs = [part.strip() for part in cleaned.split("\n\n") if part.strip()]
         return "\n\n".join(paragraphs)
 
@@ -497,10 +655,22 @@ class EmailDraftGenerator:
             issues.append("empty_subject")
         if "for reference" in lowered:
             issues.append("for_reference_phrase")
+        if "would it make sense for me to" in lowered:
+            issues.append("would_it_make_sense_phrase")
+        if "that seemed relevant because" in lowered:
+            issues.append("that_seemed_relevant_phrase")
+        if "that kind of channel-focused assortment usually points to" in lowered:
+            issues.append("channel_focused_analysis_phrase")
         if "broad range" in lowered:
             issues.append("broad_range_phrase")
         if re.search(r"\bfor [a-z_-]+ teams\b", lowered):
             issues.append("team_label_phrase")
+        if re.search(
+            r"^(?:Hello|Hi) (?:[A-Z0-9&._-]+\s){1,}[A-Z0-9&._-]+ team,",
+            body,
+            flags=re.MULTILINE,
+        ):
+            issues.append("placeholder_greeting")
         if lowered.count("?") > 1:
             issues.append("too_many_questions")
         if lowered.count("factory") > 1:
@@ -536,6 +706,14 @@ class EmailDraftGenerator:
         word_count = len(body.split())
         if word_count > 150:
             issues.append("too_long")
+        signature_lines = [line.strip() for line in body.splitlines() if line.strip()]
+        if "best regards," in lowered:
+            try:
+                idx = next(i for i, line in enumerate(signature_lines) if line.lower() == "best regards,")
+                if len(signature_lines[idx + 1 :]) < 3:
+                    issues.append("weak_signature")
+            except StopIteration:
+                pass
         return issues
 
     def _merge_review_note(

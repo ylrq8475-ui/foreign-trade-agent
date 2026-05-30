@@ -56,13 +56,14 @@ class EmailDraftGeneratorTests(unittest.TestCase):
 
         draft = self.generator.generate(customer, profile)
 
-        self.assertIn("manufacturer specializing", draft.body)
-        self.assertIn("stable quality control", draft.body)
-        self.assertIn("reliable lead times", draft.body)
-        self.assertIn("repeat-order demand", draft.body)
-        self.assertIn("Plastic-Dingsheng", draft.body)
+        self.assertIn("We manufacture food-grade silicone", draft.body)
+        self.assertIn("Sample lead time is typically 7-14 days.", draft.body)
+        self.assertIn("Dingsheng Plastic & Silicone Co., Ltd.", draft.body)
+        self.assertNotIn("FDA food-contact testing", draft.body)
+        self.assertNotIn("ISO 9001-certified quality system", draft.body)
         self.assertNotIn("for distributor teams", draft.body)
         self.assertNotIn("for reference", draft.body)
+        self.assertNotIn("That kind of channel-focused assortment", draft.body)
 
     def test_private_label_angle_requires_supported_evidence(self) -> None:
         customer = {"company_name": "Example Brand"}
@@ -88,7 +89,62 @@ class EmailDraftGeneratorTests(unittest.TestCase):
         draft = self.generator.generate(customer, profile)
 
         self.assertIn("private-label", draft.body.lower())
-        self.assertIn("Pantone color matching", draft.body)
+        self.assertIn("OEM/ODM development", draft.body)
+        self.assertNotIn("Pantone color matching", draft.body)
+        self.assertNotIn("logo printing", draft.body)
+
+    def test_distributor_compliance_emphasis_prefers_lfgb_over_sample_speed(self) -> None:
+        customer = {"company_name": "EU Kitchen Import"}
+        profile = CustomerProfileResult(
+            customer_type="importer",
+            main_products=["kitchen tools"],
+            website_summary="EU importer focused on food-contact kitchenware compliance.",
+            potential_needs=[],
+            priority="medium",
+            confidence_score=0.8,
+            review_required=True,
+            evidence=[
+                {
+                    "page": "https://example.com/compliance",
+                    "quote": "Food-contact compliance and EU approval are important for our assortment.",
+                    "type": "fact",
+                    "category": "compliance",
+                }
+            ],
+            contains_inference=False,
+        )
+
+        draft = self.generator.generate(customer, profile)
+
+        self.assertIn("LFGB food-contact testing", draft.body)
+        self.assertNotIn("Sample lead time is typically 7-14 days.", draft.body)
+
+    def test_private_label_urgent_sampling_prefers_sample_speed_over_moq(self) -> None:
+        customer = {"company_name": "Fast Sample Brand"}
+        profile = CustomerProfileResult(
+            customer_type="brand owner",
+            main_products=["kitchen tools"],
+            website_summary="Private-label kitchen brand with urgent sample development needs.",
+            potential_needs=[],
+            priority="medium",
+            confidence_score=0.81,
+            review_required=True,
+            evidence=[
+                {
+                    "page": "https://example.com/oem",
+                    "quote": "We support private label launches and need fast sample development.",
+                    "type": "fact",
+                    "category": "private_label",
+                }
+            ],
+            contains_inference=False,
+        )
+
+        draft = self.generator.generate(customer, profile)
+
+        self.assertIn("OEM/ODM development", draft.body)
+        self.assertIn("Sample lead time is typically 7-14 days.", draft.body)
+        self.assertNotIn("MOQ for simple silicone items usually starts from 2,000 units.", draft.body)
 
     def test_missing_evidence_returns_manual_review_placeholder(self) -> None:
         customer = {"company_name": "No Evidence GmbH"}
@@ -190,6 +246,7 @@ class EmailDraftGeneratorTests(unittest.TestCase):
 
         self.assertIn("Factory Customer Email Match skill", fake_client.system_prompt)
         self.assertIn("Factory Customer Email Match skill guidance", fake_client.user_prompt)
+        self.assertIn("Stored verified factory facts", fake_client.user_prompt)
         self.assertNotIn("broad range", draft.body)
         self.assertNotIn("for wholesaler teams", draft.body)
         self.assertNotIn("for reference", draft.body)
@@ -311,10 +368,13 @@ class EmailDraftGeneratorTests(unittest.TestCase):
             body=(
                 "Hello Intergastro Handels team,\n\n"
                 "I noticed your product range includes a broad selection of kitchen tools and service items.\n\n"
-                "We are a manufacturer specializing in food-grade silicone kitchen tools. "
-                "On the supply side, we focus on stable quality control, workable MOQ, and reliable lead times.\n\n"
-                "If useful, would it make sense for me to send a brief overview of a few silicone items that may fit your assortment?\n\n"
-                "Best regards,\nPlastic-Dingsheng"
+                "We manufacture food-grade silicone kitchen tools.\n"
+                "Our silicone kitchen tools are backed by LFGB food-contact testing, FDA food-contact testing, and an ISO 9001-certified quality system.\n\n"
+                "If useful, I can send a short overview of a few silicone items that may fit your assortment.\n\n"
+                "Best regards,\n"
+                "Jane Chen\n"
+                "Dingsheng Plastic & Silicone Co., Ltd.\n"
+                "admin@hzhesheng.com.cn"
             ),
             review_note="Checked by sales",
         )
@@ -350,7 +410,7 @@ class EmailDraftGeneratorTests(unittest.TestCase):
             profile,
             subject="Quick question",
             body=(
-                "Hi Intergastro Handels team,\n\n"
+                "Hi INTERGASTRO HANDELS team,\n\n"
                 "I noticed your assortment covers a broad range of kitchen and service items.\n\n"
                 "We supply food-grade silicone spatulas for wholesaler teams.\n\n"
                 "Would it be useful if I shared a short product overview for reference?\n\n"
@@ -362,6 +422,7 @@ class EmailDraftGeneratorTests(unittest.TestCase):
         self.assertIn("broad_range_phrase", issues)
         self.assertIn("for_reference_phrase", issues)
         self.assertIn("team_label_phrase", issues)
+        self.assertIn("placeholder_greeting", issues)
         self.assertIn("[Skill Check] Needs review:", merged_note)
         self.assertNotIn("broad range", reviewed_draft.body)
 

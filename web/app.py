@@ -209,7 +209,7 @@ def create_app() -> FastAPI:
     app.state.fetcher = WebsiteFetcher(settings)
     app.state.parser = WebsiteParser()
     app.state.profile_generator = CustomerProfileGenerator(settings)
-    app.state.email_generator = EmailDraftGenerator(settings)
+    app.state.email_generator = EmailDraftGenerator(settings, repository=repository)
     app.state.sender = ManualSender(repository, settings)
 
     def require_api_token(*required_scopes: str):

@@ -35,6 +35,16 @@ class RepositoryAnalysisPreserveTests(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_factory_knowledge_is_seeded_into_app_settings(self) -> None:
+        knowledge = self.repository.get_factory_knowledge()
+        self.assertEqual("2026-05-26", knowledge.get("last_verified"))
+        self.assertIn("lfgb", knowledge.get("proof_points", {}))
+        self.assertIn("sample_lead_time", knowledge.get("operational_facts", {}))
+        self.assertEqual(
+            "admin@hzhesheng.com.cn",
+            knowledge.get("identity", {}).get("sales_email"),
+        )
+
     def test_failed_reanalysis_keeps_existing_good_draft(self) -> None:
         customer_id = self.repository.upsert_lead(
             Lead(

@@ -74,7 +74,7 @@ class SimpleAppContext:
         self.fetcher = WebsiteFetcher(settings)
         self.parser = WebsiteParser()
         self.profile_generator = CustomerProfileGenerator(settings)
-        self.email_generator = EmailDraftGenerator(settings)
+        self.email_generator = EmailDraftGenerator(settings, repository=self.repository)
         self.sender = ManualSender(self.repository, settings)
         self.admin_sessions: set[str] = set()
 
@@ -83,7 +83,7 @@ class SimpleAppContext:
         self.places = GooglePlacesClient(self.settings)
         self.fetcher = WebsiteFetcher(self.settings)
         self.profile_generator = CustomerProfileGenerator(self.settings)
-        self.email_generator = EmailDraftGenerator(self.settings)
+        self.email_generator = EmailDraftGenerator(self.settings, repository=self.repository)
         self.sender = ManualSender(self.repository, self.settings)
 
     def setup_status(self) -> dict[str, bool]:

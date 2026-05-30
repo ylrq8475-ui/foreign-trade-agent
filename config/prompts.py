@@ -21,6 +21,7 @@ def build_profile_prompt(customer: dict, website_text: str) -> str:
 
 def build_email_prompt(customer: dict, profile: dict, company_context: dict) -> str:
     factory_summary = company_context.get("factory_summary") or factory_context_summary()
+    factory_knowledge_summary = str(company_context.get("factory_knowledge_summary", "")).strip()
     matched_strengths = company_context.get("matched_strengths", [])
     matched_strengths_text = "\n".join(f"- {item}" for item in matched_strengths) or "- Use only clearly relevant factory strengths."
     manual_note = str(customer.get("manual_research_note", "")).strip()
@@ -60,6 +61,7 @@ def build_email_prompt(customer: dict, profile: dict, company_context: dict) -> 
         f"Customer info:\n{profile}\n\n"
         f"Manual research note:\n{manual_note or '-'}\n\n"
         f"Our company summary:\n{factory_summary}\n\n"
+        f"Stored verified factory facts:\n{factory_knowledge_summary or '-'}\n\n"
         f"Recommended matched strengths:\n{matched_strengths_text}\n\n"
         f"Our company type: {company_context.get('your_company_type', '')}\n"
         f"Our product focus: {company_context.get('your_products', '')}\n"
